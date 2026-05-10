@@ -1,42 +1,59 @@
+import path from "node:path";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import * as schema from "./schema.js";
 
 const { Pool } = pg;
 
-// We will initialize the pool in server.ts or here.
-// Let's export a function to get the db
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;
 let pool: pg.Pool | null = null;
 
-export function getDb() {
+function migrationsFolder(): string {
+  return path.resolve(process.cwd(), "drizzle");
+}
+
+export function getPool(): pg.Pool | null {
+  return pool;
+}
+
+export function getDb(): ReturnType<typeof drizzle<typeof schema>> {
   if (!dbInstance) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL is missing");
-    }
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-    });
-    dbInstance = drizzle(pool, { schema });
+    throw new Error("Database not initialized; call initDb() during server bootstrap");
   }
   return dbInstance;
 }
 
-export async function initDb() {
+/**
+ * Run Drizzle migrations and wire a single shared pool + drizzle client.
+ * Idempotent on empty `DATABASE_URL` (no-op).
+ */
+export async function initDb(): Promise<void> {
   if (!process.env.DATABASE_URL) return;
-  const p = pool || new Pool({ connectionString: process.env.DATABASE_URL });
-  await p.query(`
-    CREATE TABLE IF NOT EXISTS journals (
-      id SERIAL PRIMARY KEY,
-      content TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
-    );
-    
-    CREATE TABLE IF NOT EXISTS interactions (
-      id SERIAL PRIMARY KEY,
-      music_params JSONB NOT NULL,
-      user_response TEXT NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW() NOT NULL
-    );
-  `);
+
+  try {
+    if (!pool) {
+      pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    }
+    const db = drizzle(pool, { schema });
+    await migrate(db, { migrationsFolder: migrationsFolder() });
+    dbInstance = db;
+  } catch (e) {
+    dbInstance = null;
+    if (pool) {
+      const p = pool;
+      pool = null;
+      await p.end().catch(() => undefined);
+    }
+    throw e;
+  }
+}
+
+export async function closeDb(): Promise<void> {
+  dbInstance = null;
+  if (pool) {
+    const p = pool;
+    pool = null;
+    await p.end();
+  }
 }

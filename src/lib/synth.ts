@@ -1,73 +1,14 @@
 import * as Tone from "tone";
+import type { ApplyParamsHint } from "./engine/types.js";
+import type { AmbientParams, EvolutionSettings, SynthesisEnginePreference } from "./music-schema.js";
+import { defaultParams, defaultSettings } from "./music-schema.js";
 
-export interface AmbientParams {
-  baseFrequency: number;
-  chordIntervals: number[];
-  filterCutoffMax: number;
-  lfoSpeed: number;
-  reverbWet: number;
-  reverbDecay: number;
-  volume: number;
-  droneVolume: number;
-  padVolume: number;
-  arpVolume: number;
-  bellVolume: number;
-  subVolume: number;
-  colorPalette: string[];
-  oscillatorType: "sine" | "triangle" | "square" | "sawtooth";
-  harmonicity: number; // 0.1 to 5.0
-  modulationIndex: number; // 0 to 10
-  noiseAmount: number; // 0.0 to 1.0
-  noiseType: "white" | "pink" | "brown";
-  delayTime: "8n" | "4n" | "2n";
-  delayFeedback: number; // 0.0 to 0.9
-  complexity: number; // 0.0 to 1.0
-  attackTime: number; // 0.1 to 10.0
-  releaseTime: number; // 0.1 to 20.0
-  chorusDepth: number; // 0.0 to 1.0
-  phaserFrequency: number; // 0.1 to 10.0
-}
+export type { AmbientParams, EvolutionSettings, SynthesisEnginePreference };
+export { defaultParams, defaultSettings };
 
-export interface EvolutionSettings {
-  timbreDiversity: number; // 0.0 to 1.0
-  evolutionSpeed: number; // 0.0 to 1.0
-  feedbackSubtlety: number; // 0.0 to 1.0
-  particleDensity: number; // 50 to 300
-}
-
-export const defaultSettings: EvolutionSettings = {
-  timbreDiversity: 0.5,
-  evolutionSpeed: 0.5,
-  feedbackSubtlety: 0.8,
-  particleDensity: 150,
-};
-
-export const defaultParams: AmbientParams = {
-  baseFrequency: 110, // A2
-  chordIntervals: [0, 7, 12, 16], // Root, Fifth, Octave, Major Third
-  filterCutoffMax: 800,
-  lfoSpeed: 0.1,
-  reverbWet: 0.8,
-  reverbDecay: 5.0,
-  volume: 0,
-  droneVolume: -5,
-  padVolume: -5,
-  arpVolume: -5,
-  bellVolume: -5,
-  subVolume: -5,
-  colorPalette: ["#1e1b4b", "#4c1d95", "#0ea5e9"],
-  oscillatorType: "sine",
-  harmonicity: 2.0,
-  modulationIndex: 2.0,
-  noiseAmount: 0.1,
-  noiseType: "pink",
-  delayTime: "4n",
-  delayFeedback: 0.4,
-  complexity: 0.3,
-  attackTime: 4.0,
-  releaseTime: 8.0,
-  chorusDepth: 0.5,
-  phaserFrequency: 0.5,
+export type AmbientEngineOptions = {
+  /** Inject for deterministic tests / parity harness */
+  rng?: () => number;
 };
 
 export class AmbientEngine {
@@ -100,10 +41,12 @@ export class AmbientEngine {
   private started = false;
   public analyser: Tone.Analyser;
 
+  private readonly rng: () => number;
   private currentIntervals: number[] = [];
   private baseFreq: number = 110;
   private currentComplexity: number = 0.3;
   private currentEvolutionSpeed: number = 0.5;
+  private currentTimbreDiversity: number = 0.5;
   private arpLoop: Tone.Loop;
   private droneLoop: Tone.Loop;
   private padLoop: Tone.Loop;
@@ -113,7 +56,8 @@ export class AmbientEngine {
   private textureLoop: Tone.Loop;
   private evolutionLoop: Tone.Loop;
 
-  constructor() {
+  constructor(options?: AmbientEngineOptions) {
+    this.rng = options?.rng ?? Math.random;
     // Effects Chain
     this.reverb = new Tone.Reverb({ decay: 10, wet: 0.5, preDelay: 0.2 });
     this.delay = new Tone.FeedbackDelay({
@@ -348,27 +292,27 @@ export class AmbientEngine {
     this.bellLoop = new Tone.Loop((time) => {
       // Shimmering high bells
       const prob = this.currentComplexity * 0.3;
-      if (Math.random() < prob && this.currentIntervals.length > 0) {
-        let freq = this.baseFreq * Math.pow(2, this.currentIntervals[Math.floor(Math.random() * this.currentIntervals.length)] / 12);
+      if (this.rng() < prob && this.currentIntervals.length > 0) {
+        let freq = this.baseFreq * Math.pow(2, this.currentIntervals[Math.floor(this.rng() * this.currentIntervals.length)] / 12);
         freq *= 4; // Two octaves up
-        if (Math.random() > 0.5) freq *= 2;
+        if (this.rng() > 0.5) freq *= 2;
         this.bellSynth.triggerAttackRelease(freq, "8n", time, 0.4);
       }
     }, "4n");
 
     this.subLoop = new Tone.Loop((time) => {
       // Anchoring sub bass
-      if (Math.random() > 0.4 && this.currentIntervals.length > 0) {
+      if (this.rng() > 0.4 && this.currentIntervals.length > 0) {
         // play root note one or two octaves down
         let freq = this.baseFreq / 2;
-        if (Math.random() > 0.5) freq /= 2;
+        if (this.rng() > 0.5) freq /= 2;
         this.subSynth.triggerAttackRelease(freq, "2m", time, 0.4);
       }
     }, "4m");
 
     this.padLoop = new Tone.Loop((time) => {
       // Very slow evolving background
-      if (Math.random() > 0.3 && this.currentIntervals.length > 0) {
+      if (this.rng() > 0.3 && this.currentIntervals.length > 0) {
         const freq = this.baseFreq * Math.pow(2, this.currentIntervals[0] / 12);
         const subFreq = freq / 2; // Sub octave
         this.padSynth.triggerAttackRelease(subFreq, "4m", time, 0.2);
@@ -382,21 +326,21 @@ export class AmbientEngine {
     this.leadLoop = new Tone.Loop((time) => {
       // Ethereal melodic bursts
       const prob = this.currentComplexity * 0.4;
-      if (Math.random() < prob && this.currentIntervals.length > 0) {
-        let freq = this.baseFreq * Math.pow(2, this.currentIntervals[Math.floor(Math.random() * this.currentIntervals.length)] / 12);
+      if (this.rng() < prob && this.currentIntervals.length > 0) {
+        let freq = this.baseFreq * Math.pow(2, this.currentIntervals[Math.floor(this.rng() * this.currentIntervals.length)] / 12);
         freq *= 2; // Play an octave up
         this.fmLeadSynth.triggerAttackRelease(freq, "2n", time, 0.2);
       }
     }, "2n");
 
     this.droneLoop = new Tone.Loop((time) => {
-      if (Math.random() > 0.3 && this.currentIntervals.length > 0) {
+      if (this.rng() > 0.3 && this.currentIntervals.length > 0) {
         const freq =
           this.baseFreq *
           Math.pow(
             2,
             this.currentIntervals[
-              Math.floor(Math.random() * this.currentIntervals.length)
+              Math.floor(this.rng() * this.currentIntervals.length)
             ] / 12,
           );
         this.droneSynth.triggerAttackRelease(freq, "2m", time, 0.2);
@@ -414,19 +358,19 @@ export class AmbientEngine {
         (0.5 + 0.5 * Math.sin(time * 0.5 * this.currentEvolutionSpeed));
 
       if (
-        Math.random() < generativeProbability &&
+        this.rng() < generativeProbability &&
         this.currentIntervals.length > 0
       ) {
         const intervalChoice =
           this.currentIntervals[
-            Math.floor(Math.random() * this.currentIntervals.length)
+            Math.floor(this.rng() * this.currentIntervals.length)
           ];
         let freq = this.baseFreq * Math.pow(2, intervalChoice / 12);
-        if (Math.random() > 0.5) freq *= 2;
-        if (Math.random() > 0.8) freq *= 2;
+        if (this.rng() > 0.5) freq *= 2;
+        if (this.rng() > 0.8) freq *= 2;
 
         // Slight velocity variations
-        const vel = 0.1 + Math.random() * 0.2;
+        const vel = 0.1 + this.rng() * 0.2;
         this.arpSynth.triggerAttackRelease(freq, "16n", time, vel);
       }
     }, "8n");
@@ -435,39 +379,36 @@ export class AmbientEngine {
     this.textureLoop = new Tone.Loop((time) => {
       // Evolving metallic / granular texture
       const prob = this.currentComplexity * 0.5;
-      if (Math.random() < prob) {
+      if (this.rng() < prob) {
         // High harmonic bursts
-        this.textureSynth.frequency.rampTo(this.baseFreq * (Math.random() * 4 + 1), 0.1, time);
-        this.textureSynth.harmonicity = Math.random() * 10;
-        this.textureSynth.triggerAttackRelease("16n", time, 0.1 + Math.random() * 0.1);
+        this.textureSynth.frequency.rampTo(this.baseFreq * (this.rng() * 4 + 1), 0.1, time);
+        this.textureSynth.harmonicity = this.rng() * 10 * (1 + this.currentTimbreDiversity);
+        this.textureSynth.triggerAttackRelease("16n", time, 0.1 + this.rng() * 0.1);
       }
     }, "16n");
 
     this.evolutionLoop = new Tone.Loop((time) => {
       // Small drifts in filter cutoffs or delays over a very long period
       const newMax =
-        this.lfo.max + (Math.random() * 200 - 100) * this.currentEvolutionSpeed;
+        this.lfo.max + (this.rng() * 200 - 100) * this.currentEvolutionSpeed;
       if (typeof newMax === "number") {
         this.lfo.max = Math.max(200, Math.min(newMax, 4000));
       }
       
       // evolve delay time smoothly
-      if (Math.random() > 0.7) {
+      if (this.rng() > 0.7) {
         const times = ["8n", "4n", "4nd", "2n"];
-        this.delay.delayTime.rampTo(times[Math.floor(Math.random() * times.length)], 4, time);
+        this.delay.delayTime.rampTo(times[Math.floor(this.rng() * times.length)], 4, time);
       }
     }, "8m");
   }
 
   async start() {
     if (this.started) return;
-    console.log("Starting Tone framework...");
     await Tone.start();
     Tone.Transport.bpm.value = 60; // Slower, expansive Boards of Canada / Eno vibe
-    console.log("Generating reverbs...");
     await this.reverb.generate();
     await this.shimmerReverb.generate();
-    console.log("Reverbs generated. Starting LFOs and Transport.");
     this.lfo.start();
     Tone.Transport.start();
 
@@ -477,7 +418,6 @@ export class AmbientEngine {
       const freq = this.baseFreq;
       this.droneSynth.triggerAttackRelease(freq, "2m", now, 0.4);
       this.padSynth.triggerAttackRelease(freq * Math.pow(2, this.currentIntervals[1] / 12), "2m", now + 0.1, 0.3);
-      console.log("Guaranteed initial chord triggered at", now);
     } else if (this.currentIntervals.length === 1) {
       const now = Tone.now();
       const freq = this.baseFreq;
@@ -494,7 +434,6 @@ export class AmbientEngine {
     this.evolutionLoop.start(0);
     this.noise.start(0);
     this.started = true;
-    console.log("Ambient Engine fully started!");
   }
 
   stop() {
@@ -520,56 +459,59 @@ export class AmbientEngine {
 
   applyEvolutionSettings(settings: EvolutionSettings) {
     this.currentEvolutionSpeed = settings.evolutionSpeed;
+    this.currentTimbreDiversity = settings.timbreDiversity;
   }
 
-  applyParams(params: AmbientParams) {
+  applyParams(params: AmbientParams, hint?: ApplyParamsHint) {
     this.baseFreq = params.baseFrequency;
     this.currentIntervals = params.chordIntervals;
     this.currentComplexity = params.complexity;
 
     const now = Tone.now();
+    const ramp = hint?.rampSeconds ?? 2;
+    const delayRamp = Math.min(5, Math.max(0.25, ramp * 0.22));
 
-    this.delay.delayTime.rampTo(params.delayTime, 0.5, now);
-    this.delay.feedback.rampTo(params.delayFeedback, 0.5, now);
+    this.delay.delayTime.rampTo(params.delayTime, delayRamp, now);
+    this.delay.feedback.rampTo(params.delayFeedback, delayRamp, now);
 
     this.updateTimbre(params);
 
     this.lfo.max = params.filterCutoffMax;
-    this.lfo.frequency.rampTo(params.lfoSpeed, 2, now);
-    
-    // Wire complexities to other LFOs dynamically
-    this.lfo2.frequency.rampTo(params.lfoSpeed * 2 * this.currentEvolutionSpeed, 2, now);
-    this.lfo3.frequency.rampTo(params.lfoSpeed * 0.5 * this.currentEvolutionSpeed, 2, now);
-    this.lfo4.frequency.rampTo(params.lfoSpeed * 0.25 * this.currentEvolutionSpeed, 2, now);
+    this.lfo.frequency.rampTo(params.lfoSpeed, ramp, now);
 
-    this.phaser.frequency.rampTo(params.phaserFrequency, 2, now);
-    this.chorus.frequency.rampTo(params.lfoSpeed * 5, 2, now);
+    // Wire complexities to other LFOs dynamically
+    this.lfo2.frequency.rampTo(params.lfoSpeed * 2 * this.currentEvolutionSpeed, ramp, now);
+    this.lfo3.frequency.rampTo(params.lfoSpeed * 0.5 * this.currentEvolutionSpeed, ramp, now);
+    this.lfo4.frequency.rampTo(params.lfoSpeed * 0.25 * this.currentEvolutionSpeed, ramp, now);
+
+    this.phaser.frequency.rampTo(params.phaserFrequency, ramp, now);
+    this.chorus.frequency.rampTo(params.lfoSpeed * 5, ramp, now);
     this.chorus.depth = params.chorusDepth;
-    this.autoPan.frequency.rampTo(params.lfoSpeed * 0.5, 2, now);
-    
+    this.autoPan.frequency.rampTo(params.lfoSpeed * 0.5, ramp, now);
+
     // Tape Wow & Saturation
-    this.vibrato.depth.rampTo(params.complexity * 0.4, 2, now);
-    this.vibrato.frequency.rampTo(params.lfoSpeed * 2, 2, now);
-    this.tapeSaturation.wet.rampTo(params.noiseAmount * 0.8, 2, now);
+    this.vibrato.depth.rampTo(params.complexity * 0.4, ramp, now);
+    this.vibrato.frequency.rampTo(params.lfoSpeed * 2, ramp, now);
+    this.tapeSaturation.wet.rampTo(params.noiseAmount * 0.8, ramp, now);
 
     // Noise settings
     this.noise.type = params.noiseType;
     // Map noiseAmount 0-1 to db (-60 to -10)
     const noiseVol =
       params.noiseAmount === 0 ? -100 : -60 + params.noiseAmount * 50;
-    this.noise.volume.rampTo(noiseVol, 2, now);
+    this.noise.volume.rampTo(noiseVol, ramp, now);
 
-    this.droneSynth.volume.rampTo(params.droneVolume, 2, now);
-    this.padSynth.volume.rampTo(params.padVolume, 2, now);
-    this.arpSynth.volume.rampTo(params.arpVolume, 2, now);
-    this.bellSynth.volume.rampTo(params.bellVolume, 2, now);
-    this.subSynth.volume.rampTo(params.subVolume, 2, now);
-    this.fmLeadSynth.volume.rampTo(params.arpVolume - 2, 2, now); 
-    this.textureSynth.volume.rampTo(params.droneVolume - 5, 2, now);
+    this.droneSynth.volume.rampTo(params.droneVolume, ramp, now);
+    this.padSynth.volume.rampTo(params.padVolume, ramp, now);
+    this.arpSynth.volume.rampTo(params.arpVolume, ramp, now);
+    this.bellSynth.volume.rampTo(params.bellVolume, ramp, now);
+    this.subSynth.volume.rampTo(params.subVolume, ramp, now);
+    this.fmLeadSynth.volume.rampTo(params.arpVolume - 2, ramp, now);
+    this.textureSynth.volume.rampTo(params.droneVolume - 5, ramp, now);
 
-    this.reverb.wet.rampTo(Math.min(params.reverbWet, 0.95), 2, now);
+    this.reverb.wet.rampTo(Math.min(params.reverbWet, 0.95), ramp, now);
     this.reverb.decay = Math.max(0.1, params.reverbDecay);
-    Tone.Destination.volume.rampTo(Math.min(params.volume, -5), 2, now);
+    Tone.Destination.volume.rampTo(Math.min(params.volume, -5), ramp, now);
   }
 
   private updateTimbre(params: AmbientParams) {
@@ -579,8 +521,6 @@ export class AmbientEngine {
     const fm = this.fmLeadSynth as any;
     const sub = this.subSynth as any;
     const bell = this.bellSynth as any;
-
-    console.log("Applying params to timbre:", params);
 
     const oscType =
       typeof params.oscillatorType === "string" &&

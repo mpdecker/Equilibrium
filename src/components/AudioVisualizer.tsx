@@ -1,11 +1,42 @@
-import React, { useEffect, useRef } from "react";
-import * as Tone from 'tone';
+import React, { useEffect, useRef, useState } from "react";
+
+/** Duck-type compatible with Tone.Analyser for waveform visualization */
+export type WaveformAnalyser = {
+  getValue(): Float32Array | number[];
+};
 
 interface AudioVisualizerProps {
-  analyser: Tone.Analyser | null;
+  analyser: WaveformAnalyser | null;
   isPlaying: boolean;
   colorPalette: string[];
   particleDensity: number;
+  /**
+   * Override accessibility motion reduction. When omitted, `(prefers-reduced-motion: reduce)`
+   * is read via `matchMedia` so the canvas respects OS settings when embedded elsewhere.
+   */
+  reduceMotion?: boolean;
+}
+
+function useSystemPrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => setReduced(mq.matches);
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
+
+    mq.addListener(apply);
+    return () => mq.removeListener(apply);
+  }, []);
+
+  return reduced;
 }
 
 interface Particle {
@@ -22,7 +53,16 @@ interface Particle {
   id_offset: number;
 }
 
-export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDensity }: AudioVisualizerProps) {
+export function AudioVisualizer({
+  analyser,
+  isPlaying,
+  colorPalette,
+  particleDensity,
+  reduceMotion: reduceMotionProp,
+}: AudioVisualizerProps) {
+  const systemReducedMotion = useSystemPrefersReducedMotion();
+  const reduceMotion = reduceMotionProp ?? systemReducedMotion;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>(0);
   const particlesRef = useRef<Particle[]>([]);
@@ -41,7 +81,7 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
-      ctx.scale(dpr, dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     updateSize();
     window.addEventListener("resize", updateSize);
@@ -61,6 +101,13 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
 
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseout", handleMouseLeave);
+
+    const capDensity = reduceMotion ? Math.min(particleDensity, 40) : particleDensity;
+    const enableClusterForces = !reduceMotion;
+    const sway = reduceMotion ? 0.05 : 0.15;
+    const spawnChance = reduceMotion ? 0.06 : 0.2;
+    const initCount = reduceMotion ? 22 : 50;
+    const phaseStep = reduceMotion ? 0.002 : 0.005;
 
     // Helper to get a random color from the palette
     const getRandomColor = () => {
@@ -86,7 +133,7 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
 
     // Initialize some particles
     const rect = canvas.getBoundingClientRect();
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < initCount; i++) {
       const p = createParticle(rect.width, rect.height);
       p.y = Math.random() * rect.height; // Distribute initial particles
       p.life = Math.random() * p.maxLife;
@@ -123,56 +170,73 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
       smoothedAudioLevel += (audioLevel - smoothedAudioLevel) * 0.03;
 
       // Add new particles periodically
-      if (particlesRef.current.length < particleDensity) {
-        if (Math.random() < 0.2) {
+      if (particlesRef.current.length < capDensity) {
+        if (Math.random() < spawnChance) {
           particlesRef.current.push(createParticle(width, height));
         }
       }
 
       const particles = particlesRef.current;
 
-      // Apply subtle clustering/attraction forces
-      for (let i = 0; i < particles.length; i++) {
-        const p1 = particles[i];
-        for (let j = i + 1; j < particles.length; j++) {
-          const p2 = particles[j];
-          
-          const dx = p2.x - p1.x;
-          const dy = p2.y - p1.y;
-          const distSq = dx * dx + dy * dy;
-          const maxDist = 80; // 80px interaction radius
-          const maxDistSq = maxDist * maxDist;
-          
-          if (distSq > 0 && distSq < maxDistSq) {
-            const dist = Math.sqrt(distSq);
-            // Gentle force: stronger when closer, but still very weak overall
-            const force = (1 - dist / maxDist) * 0.003;
-            
-            const fx = (dx / dist) * force;
-            const fy = (dy / dist) * force;
-            
-            p1.vx += fx;
-            p1.vy += fy;
-            p2.vx -= fx;
-            p2.vy -= fy;
+      // Apply subtle clustering/attraction forces (skipped under reduced motion)
+      if (enableClusterForces) {
+        for (let i = 0; i < particles.length; i++) {
+          const p1 = particles[i];
+          for (let j = i + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const distSq = dx * dx + dy * dy;
+            const maxDist = 80; // 80px interaction radius
+            const maxDistSq = maxDist * maxDist;
+
+            if (distSq > 0 && distSq < maxDistSq) {
+              const dist = Math.sqrt(distSq);
+              // Gentle force: stronger when closer, but still very weak overall
+              const force = (1 - dist / maxDist) * 0.003;
+
+              const fx = (dx / dist) * force;
+              const fy = (dy / dist) * force;
+
+              p1.vx += fx;
+              p1.vy += fy;
+              p2.vx -= fx;
+              p2.vy -= fy;
+            }
+          }
+
+          // Dampen velocity to prevent runaway speeds and maintain slow drift
+          p1.vx *= 0.99;
+          p1.vy *= 0.99;
+
+          // Ensure they maintain a gentle upward lift
+          if (p1.vy > -0.1) {
+            p1.vy -= 0.005;
+          }
+
+          // Cap maximum speed
+          const speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
+          const maxSpeed = 0.6;
+          if (speed > maxSpeed) {
+            p1.vx = (p1.vx / speed) * maxSpeed;
+            p1.vy = (p1.vy / speed) * maxSpeed;
           }
         }
-        
-        // Dampen velocity to prevent runaway speeds and maintain slow drift
-        p1.vx *= 0.99;
-        p1.vy *= 0.99;
-        
-        // Ensure they maintain a gentle upward lift
-        if (p1.vy > -0.1) {
-          p1.vy -= 0.005;
-        }
-        
-        // Cap maximum speed
-        const speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
-        const maxSpeed = 0.6;
-        if (speed > maxSpeed) {
-          p1.vx = (p1.vx / speed) * maxSpeed;
-          p1.vy = (p1.vy / speed) * maxSpeed;
+      } else {
+        for (let i = 0; i < particles.length; i++) {
+          const p1 = particles[i];
+          p1.vx *= 0.99;
+          p1.vy *= 0.99;
+          if (p1.vy > -0.1) {
+            p1.vy -= 0.005;
+          }
+          const speed = Math.sqrt(p1.vx * p1.vx + p1.vy * p1.vy);
+          const maxSpeed = 0.35;
+          if (speed > maxSpeed) {
+            p1.vx = (p1.vx / speed) * maxSpeed;
+            p1.vy = (p1.vy / speed) * maxSpeed;
+          }
         }
       }
 
@@ -183,7 +247,7 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
         const p = particlesRef.current[i];
         
         p.life++;
-        p.x += p.vx + Math.sin(phase + p.id_offset) * 0.15; // Gentle swaying
+        p.x += p.vx + Math.sin(phase + p.id_offset) * sway; // Gentle swaying
         p.y += p.vy - (smoothedAudioLevel * 0.3); // Very small lift from audio
 
         // Subtly pulse size and alpha with smoothed audio level
@@ -251,7 +315,7 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
       }
 
       ctx.globalCompositeOperation = "source-over"; // Reset
-      phase += 0.005;
+      phase += phaseStep;
     };
 
     draw();
@@ -260,7 +324,7 @@ export function AudioVisualizer({ analyser, isPlaying, colorPalette, particleDen
       cancelAnimationFrame(animationRef.current);
       window.removeEventListener("resize", updateSize);
     };
-  }, [analyser, isPlaying, colorPalette]);
+  }, [analyser, isPlaying, colorPalette, particleDensity, reduceMotion]);
 
   return (
     <canvas 
