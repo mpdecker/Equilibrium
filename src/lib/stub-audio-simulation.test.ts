@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { synthesizeStubAudioBuffer } from "./stub-audio-simulation.js";
+import { synthesizeStubAudioBuffer, synthesizeStubAudioInto } from "./stub-audio-simulation.js";
 import { defaultParams } from "./music-schema.js";
 import { createSeededRng } from "./rng.js";
 
@@ -54,5 +54,37 @@ describe("stub-audio-simulation", () => {
     let diff = 0;
     for (let i = 0; i < ref.length; i++) diff += Math.abs(ref[i] - tgt[i]);
     expect(diff).toBeGreaterThan(1e-4);
+  });
+});
+
+describe("synthesizeStubAudioInto", () => {
+  it("writes to output buffer identically to synthesizeStubAudioBuffer", () => {
+    const opts = {
+      phase: 123,
+      frameLength: 256,
+      sampleRate: 48000,
+      variant: "reference" as const,
+      rng: () => 0.5,
+    };
+    const bufRef = synthesizeStubAudioBuffer(defaultParams, opts);
+    const bufInto = new Float32Array(256);
+    synthesizeStubAudioInto(defaultParams, opts, bufInto);
+    expect(Array.from(bufInto)).toEqual(Array.from(bufRef));
+  });
+
+  it("handles empty chord intervals gracefully", () => {
+    const params = { ...defaultParams, chordIntervals: [] };
+    const out = new Float32Array(128);
+    synthesizeStubAudioInto(params, {
+      phase: 0,
+      frameLength: 128,
+      sampleRate: 48000,
+      variant: "reference",
+      rng: () => 0.5,
+    }, out);
+    for (let i = 0; i < out.length; i++) {
+      expect(out[i]).toBeGreaterThanOrEqual(-1);
+      expect(out[i]).toBeLessThanOrEqual(1);
+    }
   });
 });
