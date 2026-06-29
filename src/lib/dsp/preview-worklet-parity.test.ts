@@ -3,6 +3,7 @@ import { defaultParams } from "../music-schema.js";
 import {
   synthesizeWorkletPreviewInto,
   synthesizeWorkletPreviewBuffer,
+  deterministicWorkletNoise,
 } from "./preview-worklet-match.js";
 
 const SR = 48_000;
@@ -58,5 +59,31 @@ describe("preview DSP (worklet-aligned)", () => {
     for (let i = 0; i < manual.length; i++) {
       expect(buffer[i]).toBeCloseTo(manual[i], 6);
     }
+  });
+});
+
+describe("deterministicWorkletNoise", () => {
+  it("produces values in [0, 1)", () => {
+    for (let s = 0; s < 100; s++) {
+      for (let i = 0; i < 50; i++) {
+        const v = deterministicWorkletNoise(s, i);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("is deterministic for same inputs", () => {
+    const a = deterministicWorkletNoise(42, 7);
+    const b = deterministicWorkletNoise(42, 7);
+    expect(a).toBe(b);
+  });
+
+  it("varies with different phase or index", () => {
+    const base = deterministicWorkletNoise(0, 0);
+    const diffPhase = deterministicWorkletNoise(1, 0);
+    const diffIndex = deterministicWorkletNoise(0, 1);
+    expect(diffPhase).not.toBe(base);
+    expect(diffIndex).not.toBe(base);
   });
 });
