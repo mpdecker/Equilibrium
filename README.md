@@ -263,17 +263,27 @@ See [`docs/INSTRUMENT_MODE.md`](docs/INSTRUMENT_MODE.md) for the full gesture pi
 
 ---
 
-## Mobile (Capacitor)
+## Mobile (Capacitor) — Phase C–E storefront
+
+Native iOS/Android wrap the **same** Vite `dist/` and web audio engines (Tone / worklet / preview). No forked native synthesizer.
+
+| Phase | Status |
+|-------|--------|
+| **C** shell | Complete — Capacitor + shared web audio path |
+| **D** ship scaffolding | Complete — signing templates, store scaffold, mobile CI; device QA still human |
+| **E** pre-submit | Complete — JS MediaSession, iOS PrivacyInfo, product listing copy |
 
 ```bash
-npm run cap:sync       # Build + sync to native projects
-npm run cap:ios        # Build + sync + open Xcode
-npm run cap:android    # Build + sync + open Android Studio
+npm run cap:doctor           # Local packaging checks (needs dist/)
+npm run cap:sync             # Build + sync to ios/ and android/
+npm run cap:ios              # Build + sync + open Xcode (macOS)
+npm run cap:android          # Build + sync + open Android Studio
+npm run cap:android:bundle   # Release AAB (needs android/key.properties)
 ```
 
 Set `VITE_API_BASE_URL` at build time when the API runs on a different origin than the WebView. Configure `CORS_ORIGINS` on the server for Capacitor origins (`https://localhost`, `capacitor://localhost`).
 
-See [`docs/MOBILE.md`](docs/MOBILE.md) for full mobile setup.
+See [`docs/MOBILE.md`](docs/MOBILE.md) for device QA, signing, and storefront checklist. Listings under [`store/`](store/).
 
 ---
 
@@ -319,6 +329,7 @@ public/
 
 drizzle/                     # PostgreSQL migration SQL files
 docs/                        # Additional documentation
+ios/                         # Capacitor iOS native project (Background Modes: audio)
 android/                     # Capacitor Android native project
 ```
 

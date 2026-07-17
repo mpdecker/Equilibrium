@@ -18,6 +18,17 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run cap:doctor
+      - name: Capacitor sync (no open)
+        run: npx cap sync
+      - name: Set up Java for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Android assembleDebug
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug --no-daemon
 
   postgres-api:
     runs-on: ubuntu-latest

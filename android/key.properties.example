@@ -1,0 +1,7 @@
+# Copy to android/key.properties (gitignored) for release signing.
+# Do not commit real passwords or keystores.
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=equilibrium
+storeFile=../equilibrium-release.keystore
