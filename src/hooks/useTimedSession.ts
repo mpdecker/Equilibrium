@@ -8,6 +8,7 @@ import {
   applyPlaybackBrightnessMacro,
   applyPlaybackIntensityMacro,
 } from "../lib/playback-macros";
+import { pulseSessionCheckpoint } from "../lib/platform/native";
 
 type UseTimedSessionOptions = {
   intensityPlaybackRef: MutableRefObject<number>;
@@ -77,7 +78,7 @@ export function useTimedSession({
       checkpoints.forEach((cp, idx) => {
         if (progress >= cp && !sessionMilestonesRef.current.has(idx)) {
           sessionMilestonesRef.current.add(idx);
-          navigator.vibrate?.(14);
+          void pulseSessionCheckpoint(14);
         }
       });
       const base = sessionBaseParamsRef.current ?? paramsRef.current;

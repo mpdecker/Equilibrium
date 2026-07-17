@@ -3,8 +3,7 @@ import { defaultParams, defaultSettings } from "../music-schema.js";
 import { cloneAmbientParams, lerpAmbientParams } from "./param-blend.js";
 import { PreviewAmbientEngine } from "./stub-engine.js";
 import type { ApplyParamsHint, EngineAnalyserLike, IAmbientEngine } from "./types.js";
-
-const DEFAULT_WORKLET_URL = "/worklets/equilibrium-dsp-processor.js";
+import { resolveWorkletModuleUrl } from "./worklet-url.js";
 
 class SilentAnalyser implements EngineAnalyserLike {
   private readonly buf = new Float32Array(256);
@@ -47,7 +46,7 @@ export class WorkletAmbientEngine implements IAmbientEngine {
   private readonly workletModuleUrl: string;
 
   constructor(opts?: { workletModuleUrl?: string }) {
-    this.workletModuleUrl = opts?.workletModuleUrl ?? DEFAULT_WORKLET_URL;
+    this.workletModuleUrl = opts?.workletModuleUrl ?? resolveWorkletModuleUrl();
   }
 
   getAnalyser(): EngineAnalyserLike {

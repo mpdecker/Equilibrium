@@ -42,6 +42,7 @@ import { isSoundscapeEnvelope, toSoundscapeEnvelope } from "./lib/music-params-e
 import { apiFetch } from "./lib/api-fetch";
 import { upsertBackendSession } from "./lib/backend-session";
 import { postJournalOrQueue, postInteractionOrQueue, newMutationId } from "./lib/sync-queue";
+import { bindMediaSession, syncMediaSessionPlaybackState } from "./lib/platform/media-session";
 import {
   readSessionNudgeSuppressSession,
   writeSessionNudgeSuppressSession,
@@ -407,7 +408,7 @@ export default function App() {
     }
   };
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     if (!engineRef.current || isStarting) return;
 
     if (isPlaying) {
@@ -427,7 +428,23 @@ export default function App() {
         setIsStarting(false);
       }
     }
-  };
+  }, [isStarting, isPlaying, computeEngineParams, params]);
+
+  useEffect(() => {
+    return bindMediaSession({
+      getPlaying: () => isPlayingRef.current,
+      onPlay: async () => {
+        if (!isPlayingRef.current) await togglePlay();
+      },
+      onPause: async () => {
+        if (isPlayingRef.current) await togglePlay();
+      },
+    });
+  }, [togglePlay]);
+
+  useEffect(() => {
+    syncMediaSessionPlaybackState(isPlaying);
+  }, [isPlaying]);
 
   const handleMoodSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
