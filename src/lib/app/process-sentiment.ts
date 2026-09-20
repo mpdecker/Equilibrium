@@ -86,6 +86,8 @@ export async function processSentiment(
         question: "How is this space feeling?",
         options: ["Centering", "A bit intense", "Need more uplift"],
       },
+      explainLine:
+        "Couldn't reach the music generator, so your soundscape stayed as-is. Your mood was saved — try again in a moment.",
     };
   }
 }

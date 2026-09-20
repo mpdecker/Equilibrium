@@ -160,6 +160,19 @@ export function InstrumentStage(props: InstrumentStageProps) {
           onMacrosDrag(next);
           commit.commit(paramsRef.current);
         }
+      } else if (draggingRef.current) {
+        // `axes: null` with no other gesture data means the last pointer just
+        // lifted (see useStageGesture's `emit()` for the zero-pointers case).
+        // A normal in-bounds pointer-up never fires `onLeave` (that only fires
+        // when the cursor physically exits the stage element), so this is the
+        // only signal we get that an ordinary drag-and-release just ended.
+        // Without it, the release never commits: React state (HUD readout,
+        // audio-lab sync, gesture interaction recording) stays frozen at
+        // whatever it was before the very first drag, even though the engine
+        // itself keeps tracking the live ref values.
+        draggingRef.current = false;
+        commit.release();
+        onMacrosRelease(macrosRef.current);
       }
 
       if (snap.pinch !== undefined || snap.rotation !== undefined) {
@@ -169,7 +182,7 @@ export function InstrumentStage(props: InstrumentStageProps) {
         }
       }
     },
-    [commit, onMacrosDrag, onPaletteHintAdvance, showHud],
+    [commit, onMacrosDrag, onMacrosRelease, onPaletteHintAdvance, showHud],
   );
 
   const onLeave = useCallback(() => {

@@ -88,7 +88,15 @@ export class WorkletAmbientEngine implements IAmbientEngine {
       this.analyserBridge = new FloatAnalyserWrap(this.analyserNode);
       await this.ctx.resume();
       this.playing = true;
-    } catch {
+    } catch (err) {
+      // This fallback is silent to the *user* by design (playback should never hard-crash
+      // the app), but it swaps in `PreviewAmbientEngine` — a PCM generator with no Web Audio
+      // graph at all, i.e. genuinely inaudible output — while the UI keeps showing a normal
+      // "playing" state (including a live-looking analyser/visualizer). Without this log,
+      // a real-world AudioWorklet failure (missing worklet asset, CSP blocking the module,
+      // browser without AudioWorklet support) presents as silent-but-otherwise-normal
+      // playback with zero diagnostic trail. Always log so it's at least debuggable.
+      console.error("WorkletAmbientEngine: falling back to silent preview engine", err);
       this.teardownWorklet();
       this.fallback = new PreviewAmbientEngine();
       this.fallback.applyParams(this.params);
