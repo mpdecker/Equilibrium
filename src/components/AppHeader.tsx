@@ -13,6 +13,8 @@ export type AppHeaderProps = {
   onWrite: () => void;
   onToggleJournal: () => void;
   onOpenAudioLab: () => void;
+  /** Eyebrow label above the wordmark — names the active UI mode (see docs/INSTRUMENT_MODE.md). */
+  eyebrow?: string;
 };
 
 export function AppHeader({
@@ -24,6 +26,7 @@ export function AppHeader({
   onWrite,
   onToggleJournal,
   onOpenAudioLab,
+  eyebrow = "Instrument",
 }: AppHeaderProps) {
   return (
     <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between mb-10 md:mb-12 relative z-50">
@@ -37,7 +40,7 @@ export function AppHeader({
             <Wind className="w-5 h-5 text-eq-glow/90" aria-hidden />
           </span>
           <div className="min-w-0">
-            <p className={cx(TYPE.eyebrow, "pl-0 mb-1 tracking-[0.35em] text-eq-glow/80")}>Instrument</p>
+            <p className={cx(TYPE.eyebrow, "pl-0 mb-1 tracking-[0.35em] text-eq-glow/80")}>{eyebrow}</p>
             <h1 className="text-lg md:text-xl font-serif font-light tracking-[0.45em] text-eq-ink/95">
               EQUILIBRIUM
             </h1>

@@ -83,6 +83,7 @@ export function FormAppLayout({
 
       <div className="relative z-10 flex flex-col min-h-screen max-w-4xl mx-auto px-6 pt-6 md:p-12 pb-[calc(9.5rem+env(safe-area-inset-bottom))] md:pb-12 md:pt-14">
         <AppHeader
+          eyebrow="Form"
           netOnline={netOnline}
           outboxPending={outboxPending}
           outboxSyncing={outboxSyncing}

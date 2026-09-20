@@ -39,6 +39,15 @@ describe("AppHeader", () => {
     expect(onOpenAudioLab).toHaveBeenCalledTimes(1);
   });
 
+  it("defaults the eyebrow label to Instrument, and honors an override for Form mode", () => {
+    const { rerender } = render(<AppHeader {...baseProps} />);
+    expect(screen.getByText("Instrument")).toBeTruthy();
+
+    rerender(<AppHeader {...baseProps} eyebrow="Form" />);
+    expect(screen.getByText("Form")).toBeTruthy();
+    expect(screen.queryByText("Instrument")).toBeNull();
+  });
+
   it("shows offline and outbox copy when disconnected or pending", () => {
     const { rerender } = render(<AppHeader {...baseProps} netOnline={false} />);
     expect(
