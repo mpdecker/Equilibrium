@@ -51,6 +51,17 @@ describe("processSentiment", () => {
     });
     expect(result.params).toEqual(defaultParams);
     expect(result.feedbackPrompt.question).toBe("How is this space feeling?");
+    expect(result.explainLine).toMatch(/couldn't reach/i);
+  });
+
+  it("surfaces an explainLine when the request throws (network error)", async () => {
+    vi.mocked(apiFetch).mockRejectedValue(new Error("network down"));
+    const result = await processSentiment("hello", defaultParams, defaultSettings, {
+      getSoundSessionId: () => null,
+      refreshOutboxCount: vi.fn().mockResolvedValue(undefined),
+    });
+    expect(result.params).toEqual(defaultParams);
+    expect(result.explainLine).toMatch(/couldn't reach/i);
   });
 
   it("returns parsed JSON on success", async () => {

@@ -133,6 +133,33 @@ describe('Integration', () => {
     });
   });
 
+  it('mood palette flow: rendered background gradient reflects the AI-returned colorPalette', async () => {
+    const { container } = render(<App />);
+
+    const input = screen.getByPlaceholderText(/overwhelmed with work/i);
+    await userEvent.type(input, 'I feel peaceful');
+
+    const submitBtn = document.querySelector('button[type="submit"]');
+    await userEvent.click(submitBtn!);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/generate-music',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    });
+
+    // The mocked /api/generate-music response above returns colorPalette
+    // ['#1e1b4b', '#4c1d95', '#0ea5e9']; the ambient stage background must pick
+    // up that exact color, proving the mood -> AI params -> rendered palette
+    // wiring actually works end-to-end (not just "a color renders").
+    await waitFor(() => {
+      const bloom = container.querySelector('[style*="radial-gradient"]');
+      expect(bloom).toBeTruthy();
+      expect(bloom!.getAttribute('style')).toMatch(/rgb\(30,\s*27,\s*75\)/);
+    });
+  });
+
   it('mood-to-journal flow: submits mood, fire-and-forget journal entry', async () => {
     render(<App />);
 
